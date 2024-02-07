@@ -1,0 +1,243 @@
+---
+title: "MLR-Adelie-Penguin"
+author: "MOH"
+date: "2024-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Loading and Cleaning data
+
+Loading data
+
+```{r}
+# Load data
+if (!require("palmerpenguins")) install.packages("palmerpenguins")
+library(palmerpenguins)
+
+
+# Display the loaded data
+head(penguins)
+
+
+# Check for missing values
+sum(is.na(penguins))
+```
+
+# Remove rows with missing values
+```{r}
+# Remove rows with missing values
+MLR_DATA <- na.omit(penguins)
+
+head(MLR_DATA)
+```
+
+
+# Select only the species "Adelie"
+```{r}
+penguins <- subset(penguins, species == "Adelie")
+
+```
+
+
+
+
+# (1) Find the estimator \( \hat{\beta} = (\hat{\beta}_1, \hat{\beta}_2, \hat{\beta}_3) \) and the distribution of \( \hat{\beta}_3 \).
+
+```{r}
+
+y=MLR_DATA$body_mass_g
+x1=MLR_DATA$bill_length_mm
+x2=MLR_DATA$bill_depth_mm
+x3=MLR_DATA$flipper_length_mm
+
+
+# Fit the multiple linear regression model
+model <- lm(y ~ x1 + x2 + x3)
+
+# Display the summary of the model
+summary(model)
+
+# Extract coefficients
+coefficients <- coef(model)
+coefficients
+```
+
+from this results:
+
+\( \hat{\beta} \) = *List of coefficient estimates*
+
+\( \hat{\beta}_1 \) = *Estimate for beta1*
+
+\( \hat{\beta}_2 \) = *Estimate for beta2*
+
+\( \hat{\beta}_3 \) = *Estimate for beta3*
+
+The distribution of \( \hat{\beta}_3 \) under the assumption of normality is given by:
+
+\[ \hat{\beta}_3 \sim \mathcal{N}(\beta_3, \sigma^2 \cdot (\text{Var}(\hat{\beta}_3)) \]
+
+Now, let's express \( \text{Var}(\hat{\beta}_3) \) in terms of the design matrix \( X \) and the error variance \( \sigma^2 \). The variance of \( \hat{\beta}_3 \) is calculated as follows:
+
+\[ \text{Var}(\hat{\beta}_3) = \sigma^2 \cdot [(X'X)^{-1}]_{33} \]
+
+Let's extract the matrix from the multiple linear regression model and calculate the inverse of \( X'X \).
+
+```{r}
+# Extract the design matrix X
+X <- model.matrix(model)[, -1]  # Exclude intercept column
+
+# Calculate (X'X)^(-1)
+inverse_XtX <- solve(t(X) %*% X)
+
+# Display the inverse of (X'X)
+print(inverse_XtX)
+```
+
+Then the distribution of \( \hat{\beta}_3 \) under the assumption of normality is given by:
+
+\[ \text{Var}(\hat{\beta}_3) = \sigma^2 \cdot \text{(Value from the inverse of X'X)} \]
+
+# (2) Conduct an F–test for the hypothesis \( H_0: \beta_3 = 0 \) with a significance level \( \alpha = 0.01 \). Provide the value of the F test statistic and the corresponding critical value.
+
+This formula is equivalent to the F-test statistic formula used for comparing the full and reduced models in multiple linear regression:
+
+\[ F_{\text{p-q,n-p}} = \frac{\left(\frac{\hat{e}'_{\text{reduced}} \cdot \hat{e}_{\text{reduced}} - \hat{e}'_{\text{full}} \cdot \hat{e}_{\text{full}}}{p-q}\right)}{\left(\frac{\hat{e}'_{\text{full}} \cdot \hat{e}_{\text{full}}}{n-p}\right)} \]
+
+- \( \hat{e}_{\text{reduced}} \): Residuals from the reduced model.
+- \( \hat{e}_{\text{full}} \): Residuals from the full model.
+- \( p \): Number of predictors in the full model.
+- \( q \): Number of predictors in the reduced model.
+- \( n \): Sample size.
+
+This F-test statistic follows an F-distribution under the null hypothesis \( H_0: \beta_q = 0 \), where \( \beta_q \) is the coefficient associated with the predictor excluded in the reduced model.
+
+```{r}
+n = nrow(MLR_DATA)
+p = length(coefficients) - 1  # Exclude intercept
+q = p - 1
+
+# Assuming you have already fitted the model
+model <- lm(y ~ x1 + x2 + x3)
+
+# Extract the residuals
+residuals_full <- residuals(model)
+
+# Fit the reduced model by excluding x3
+model_reduced <- lm(y ~ x1 + x2, data = MLR_DATA)
+residuals_reduced <- residuals(model_reduced)
+
+# Calculate the residual sum of squares for both models
+rss_full <- sum(residuals_full^2)
+rss_reduced <- sum(residuals_reduced^2)
+
+# Calculate the F-test statistic
+f_statistic <- ((rss_reduced - rss_full) / (p - q)) / (rss_full / (n - p))
+
+# Calculate the critical value at alpha = 0.01
+critical_value <- qf(0.99, p - q, n - p)
+
+# Print the results
+cat("F-test Statistic:", f_statistic, "\n")
+cat("Critical Value:", critical_value, "\n")
+```
+
+# (3) Use the marginal distribution of \( \hat{\beta}_3 \) to perform a t–test for the hypothesis \( H_0: \beta_3 = 0 \) with a significance level \( \alpha = 0.01 \). Provide the value of the test statistic and the p-value.
+
+```{r}
+# Fit the multiple linear regression model
+model <- lm(y ~ x1 + x2 + x3)
+
+# Extract coefficients and standard errors
+coef_summary <- summary(model)
+beta3_estimate <- coef_summary$coefficients["x3", "Estimate"]
+se_beta3 <- coef_summary$coefficients["x3", "Std. Error"]
+
+# Calculate the t-statistic for beta3
+t_statistic <- beta3_estimate / se_beta3
+
+# Determine the degrees of freedom
+df <- nrow(MLR_DATA) - ncol(model.matrix(model))
+
+# Calculate the p-value
+p_value <- 2 * pt(abs(t_statistic), df, lower.tail = FALSE)
+
+# Print the results
+cat("T-Test Statistic for beta3:", t_statistic, "\n")
+cat("Degrees of Freedom:", df, "\n")
+cat("P-Value for beta3:", p_value, "\n")
+```
+
+The p-value is larger than 0.01; we fail to reject the null hypothesis. This could mean that the predictor variable \( x_3 \) does not have a statistically significant impact on the response variable \( y \) in the context of our model.
+
+# (4) Compute the leverage score for the first and second observations. Determine which data point is more influential. Discuss the issues that arise with a very high leverage value.
+
+Regarding which data point is more influential, we typically look for observations with higher leverage scores. Higher leverage scores indicate that the corresponding observations have more influence on the fitted values. High leverage values can influence the model fit, be used to identify outliers, increase variability in the estimated coefficients, and indicate collinearity.
+
+One of the commonly used plots for this purpose is the plot of fitted values against leverage.
+
+```{r}
+library(ggplot2)
+
+# Fit the multiple linear regression model
+model <- lm(y ~ x1 + x2 + x3)
+
+# Compute leverage scores
+leverage_scores <- hatvalues(model)
+
+# Identify influential points (optional)
+influential_points <- which(leverage_scores > 2 * mean(leverage_scores))
+
+# Create a ggplot scatter plot
+ggplot(data = data.frame(Fitted = fitted(model), Leverage = leverage_scores)) +
+  geom_point(aes(x = Fitted, y = Leverage), color = "blue", shape=19, alpha=0.5, size=3) +
+  labs(title = "Fitted Values vs. Leverage",
+       x = "Fitted Values", y = "Leverage") +
+  geom_hline(yintercept = 2 * mean(leverage_scores), linetype = "dashed", color = "red") +
+  geom_text(data = data.frame(Fitted = fitted(model)[influential_points], 
+                              Leverage = leverage_scores[influential_points],
+                              Labels = influential_points),
+            aes(x = Fitted, y = Leverage, label = Labels), 
+            color = "blue", vjust = -0.5) +
+  theme_minimal()
+```
+
+To compute the leverage score for observations in a multiple linear regression model and determine which data point is more influential, you can use the `hatvalues()` function in R.
+
+```{r}
+# Fit the multiple linear regression model
+model <- lm(y ~ x1 + x2 + x3)
+
+# Compute leverage scores
+leverage_scores <- hatvalues(model)
+
+# Display the leverage scores for the first and second observations
+leverage_first_observation <- leverage_scores[1]
+leverage_second_observation <- leverage_scores[2]
+
+cat("Leverage Score for the First Observation:", leverage_first_observation, "\n")
+cat("Leverage Score for the Second Observation:", leverage_second_observation, "\n")
+```
+
+When comparing the leverage scores of the first observation (leverage score = *value*) with that of the second observation (leverage score = *value*), you can determine which data point has more influence. These leverage scores exhibit close proximity to each other.
+
+# (5) Given a new data point \( x = (40, 18, 195) \), find the predicted y value and its 95% confidence interval.
+
+To find the predicted \(y\) value and its 95% confidence interval for a new data point \(x = (1, 0.12, 0.56)\), we use the `predict()` function in R.
+
+```{r}
+# New data point
+new_data <- data.frame(x1 = 40, x2 = 18, x3 = 195)
+
+# Predict the y value for the new data point
+predicted_y <- predict(model, newdata = new_data, interval = "confidence")
+
+# Print the predicted y value and its 95% confidence interval
+cat("Predicted y Value:", predicted_y[1], "\n")
+cat("95% Confidence Interval:", predicted_y[2], "to", predicted_y[3], "\n")
+```
+
